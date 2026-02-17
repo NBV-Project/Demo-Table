@@ -1,216 +1,181 @@
 "use client";
 
 import Link from "next/link";
-import dynamic from "next/dynamic";
 import { useEffect, useMemo, useState } from "react";
 import {
-  SheetRow,
+  BetEntry,
+  buildBetSummary,
   buildNumberSummaries,
-  buildSheetSummary,
-  readRowsFromStorage,
+  digitsOnly,
+  readEntriesFromStorage,
 } from "@/lib/sheet-data";
 
-function DashboardPage() {
-  const [rows, setRows] = useState<SheetRow[]>(readRowsFromStorage);
-  const [lastSync, setLastSync] = useState<Date>(new Date());
+export default function DashboardPage() {
+  const [entries, setEntries] = useState<BetEntry[]>([]);
+  const [keyword, setKeyword] = useState("");
 
   useEffect(() => {
     const sync = () => {
-      setRows(readRowsFromStorage());
-      setLastSync(new Date());
+      setEntries(readEntriesFromStorage());
     };
 
     sync();
     window.addEventListener("storage", sync);
     window.addEventListener("focus", sync);
+
     return () => {
       window.removeEventListener("storage", sync);
       window.removeEventListener("focus", sync);
     };
   }, []);
 
-  const summary = useMemo(() => buildSheetSummary(rows), [rows]);
-  const numberSummaries = useMemo(() => buildNumberSummaries(rows), [rows]);
+  const summary = useMemo(() => buildBetSummary(entries), [entries]);
+  const numberSummaries = useMemo(() => buildNumberSummaries(entries), [entries]);
+  const normalizedKeyword = digitsOnly(keyword).slice(0, 2);
 
-  const topLeaders = useMemo(
-    () =>
-      [...numberSummaries]
-        .filter((item) => item.top > 0)
-        .sort((a, b) => b.top - a.top)
-        .slice(0, 10),
-    [numberSummaries],
-  );
+  const filteredSummaries = useMemo(() => {
+    if (!normalizedKeyword) return numberSummaries;
 
-  const bottomLeaders = useMemo(
-    () =>
-      [...numberSummaries]
-        .filter((item) => item.bottom > 0)
-        .sort((a, b) => b.bottom - a.bottom)
-        .slice(0, 10),
-    [numberSummaries],
-  );
+    return numberSummaries.filter((item) =>
+      item.number.includes(normalizedKeyword),
+    );
+  }, [normalizedKeyword, numberSummaries]);
 
-  const formatAmount = (value: number) =>
+  const formatMoney = (value: number) =>
     `${new Intl.NumberFormat("th-TH").format(value)} บาท`;
 
+  const formatDateTime = (value: string) =>
+    new Intl.DateTimeFormat("th-TH", {
+      dateStyle: "short",
+      timeStyle: "short",
+    }).format(new Date(value));
+
   return (
-    <main className="min-h-screen px-4 py-5 sm:px-5 lg:px-8 lg:py-8">
-      <section className="mx-auto flex w-full max-w-[1500px] flex-col gap-4">
-        <header className="rounded-2xl border border-slate-300 bg-gradient-to-r from-slate-900 via-slate-800 to-slate-700 p-5 text-white shadow-lg">
-          <div className="flex flex-wrap items-center justify-between gap-3">
+    <main className="min-h-[100dvh] bg-slate-100 px-3 py-4 sm:px-6 sm:py-6">
+      <section className="mx-auto flex w-full max-w-5xl flex-col gap-4">
+        <header className="rounded-2xl border border-slate-300 bg-slate-900 p-4 text-white shadow-sm sm:p-5">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
             <div>
-              <h1 className="text-xl font-bold tracking-tight sm:text-2xl">
-                Dashboard สรุปยอดแทง
+              <h1 className="text-xl font-black tracking-tight sm:text-2xl">
+                สรุปรายเลขทั้งหมด
               </h1>
               <p className="mt-1 text-sm text-slate-200">
-                แสดงภาพรวมยอดบน/ล่างแยกชัดเจน พร้อมอันดับเลขที่มียอดสูงสุด
-              </p>
-              <p className="mt-1 text-xs text-slate-300">
-                อัปเดตล่าสุด{" "}
-                {new Intl.DateTimeFormat("th-TH", {
-                  dateStyle: "short",
-                  timeStyle: "medium",
-                }).format(lastSync)}
+                ดูว่าเลขไหนมีคนแทงกี่คน และเปิดดูรายละเอียดรายชื่อได้
               </p>
             </div>
             <Link
               href="/"
-              className="rounded-lg border border-white/60 bg-white/10 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/20"
+              className="inline-flex h-10 items-center justify-center rounded-lg border border-white/40 px-4 text-sm font-bold text-white transition hover:bg-white/10"
             >
-              กลับหน้าตารางกรอก
+              กลับหน้าบันทึก
             </Link>
           </div>
         </header>
 
-        <section className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-          <article className="rounded-xl border border-slate-300 bg-white p-4 shadow-sm">
-            <p className="text-xs text-slate-500">ยอดบนทั้งหมด</p>
-            <p className="mt-2 text-lg font-bold text-slate-900 sm:text-xl">
-              {formatAmount(summary.topTotal)}
+        <section className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+          <article className="rounded-xl border border-slate-300 bg-white p-3">
+            <p className="text-xs text-slate-500">ลูกค้าทั้งหมด</p>
+            <p className="mt-1 text-lg font-black text-slate-900">
+              {summary.uniquePeople}
             </p>
           </article>
-          <article className="rounded-xl border border-slate-300 bg-white p-4 shadow-sm">
-            <p className="text-xs text-slate-500">ยอดล่างทั้งหมด</p>
-            <p className="mt-2 text-lg font-bold text-slate-900 sm:text-xl">
-              {formatAmount(summary.bottomTotal)}
+          <article className="rounded-xl border border-slate-300 bg-white p-3">
+            <p className="text-xs text-slate-500">รายการทั้งหมด</p>
+            <p className="mt-1 text-lg font-black text-slate-900">
+              {summary.totalEntries}
             </p>
           </article>
-          <article className="rounded-xl border border-slate-300 bg-white p-4 shadow-sm">
-            <p className="text-xs text-slate-500">บน 00-49</p>
-            <p className="mt-2 text-lg font-bold text-slate-900 sm:text-xl">
-              {formatAmount(summary.leftTop)}
+          <article className="rounded-xl border border-slate-300 bg-white p-3">
+            <p className="text-xs text-slate-500">เลขที่มีคนแทง</p>
+            <p className="mt-1 text-lg font-black text-slate-900">
+              {summary.activeNumbers}
             </p>
           </article>
-          <article className="rounded-xl border border-slate-300 bg-white p-4 shadow-sm">
-            <p className="text-xs text-slate-500">ล่าง 00-49</p>
-            <p className="mt-2 text-lg font-bold text-slate-900 sm:text-xl">
-              {formatAmount(summary.leftBottom)}
+          <article className="rounded-xl border border-slate-300 bg-white p-3">
+            <p className="text-xs text-slate-500">ยอดรวม</p>
+            <p className="mt-1 text-lg font-black text-slate-900">
+              {formatMoney(summary.totalAmount)}
             </p>
-          </article>
-          <article className="rounded-xl border border-slate-300 bg-white p-4 shadow-sm">
-            <p className="text-xs text-slate-500">บน 50-99</p>
-            <p className="mt-2 text-lg font-bold text-slate-900 sm:text-xl">
-              {formatAmount(summary.rightTop)}
-            </p>
-          </article>
-          <article className="rounded-xl border border-slate-300 bg-white p-4 shadow-sm">
-            <p className="text-xs text-slate-500">ล่าง 50-99</p>
-            <p className="mt-2 text-lg font-bold text-slate-900 sm:text-xl">
-              {formatAmount(summary.rightBottom)}
-            </p>
-          </article>
-          <article className="rounded-xl border border-slate-900 bg-slate-900 p-4 text-white shadow-sm">
-            <p className="text-xs text-slate-300">เลขที่มีรายการ</p>
-            <p className="mt-2 text-lg font-bold sm:text-xl">{numberSummaries.length} ตัว</p>
-          </article>
-          <article className="rounded-xl border border-cyan-700 bg-cyan-700 p-4 text-white shadow-sm">
-            <p className="text-xs text-cyan-100">สถานะระบบ</p>
-            <p className="mt-2 text-lg font-bold sm:text-xl">พร้อมใช้งาน</p>
           </article>
         </section>
 
-        <section className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-          <article className="rounded-2xl border border-slate-300 bg-white p-4 shadow-sm">
-            <h2 className="text-base font-bold text-slate-900">อันดับยอดบนสูงสุด</h2>
-            {topLeaders.length === 0 ? (
-              <p className="mt-2 text-sm text-slate-500">ยังไม่มีข้อมูลยอดบน</p>
-            ) : (
-              <div className="mt-3 space-y-2">
-                {topLeaders.map((item, index) => (
-                  <div
-                    key={`top-${item.number}`}
-                    className="flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50 px-3 py-2"
-                  >
-                    <div className="text-sm text-slate-700">
-                      <span className="mr-2 inline-block w-6 text-slate-400">
-                        #{index + 1}
-                      </span>
-                      เลข {item.number}
-                    </div>
-                    <div className="text-sm font-semibold text-slate-900">
-                      {formatAmount(item.top)}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </article>
-
-          <article className="rounded-2xl border border-slate-300 bg-white p-4 shadow-sm">
-            <h2 className="text-base font-bold text-slate-900">อันดับยอดล่างสูงสุด</h2>
-            {bottomLeaders.length === 0 ? (
-              <p className="mt-2 text-sm text-slate-500">ยังไม่มีข้อมูลยอดล่าง</p>
-            ) : (
-              <div className="mt-3 space-y-2">
-                {bottomLeaders.map((item, index) => (
-                  <div
-                    key={`bottom-${item.number}`}
-                    className="flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50 px-3 py-2"
-                  >
-                    <div className="text-sm text-slate-700">
-                      <span className="mr-2 inline-block w-6 text-slate-400">
-                        #{index + 1}
-                      </span>
-                      เลข {item.number}
-                    </div>
-                    <div className="text-sm font-semibold text-slate-900">
-                      {formatAmount(item.bottom)}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </article>
+        <section className="rounded-2xl border border-slate-300 bg-white p-4 shadow-sm sm:p-5">
+          <label className="block">
+            <span className="mb-1 block text-sm font-semibold text-slate-700">
+              ค้นหาเลข
+            </span>
+            <input
+              value={keyword}
+              onChange={(event) => setKeyword(event.target.value)}
+              inputMode="numeric"
+              placeholder="เช่น 01"
+              className="h-11 w-full rounded-lg border border-slate-300 px-3 text-base outline-none focus:border-blue-500 sm:max-w-xs"
+            />
+          </label>
         </section>
 
-        <section className="rounded-2xl border border-slate-300 bg-white p-4 shadow-sm">
-          <h2 className="text-base font-bold text-slate-900">รายการเลขที่มียอดทั้งหมด</h2>
-          {numberSummaries.length === 0 ? (
-            <p className="mt-2 text-sm text-slate-500">ยังไม่มีข้อมูลยอดสะสม</p>
+        <section className="space-y-2">
+          {filteredSummaries.length === 0 ? (
+            <div className="rounded-2xl border border-slate-300 bg-white px-4 py-6 text-center text-sm text-slate-500 shadow-sm">
+              ไม่พบข้อมูลเลขที่ค้นหา
+            </div>
           ) : (
-            <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-4">
-              {numberSummaries.map((item) => (
-                <div
-                  key={item.number}
-                  className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2"
-                >
-                  <div className="text-sm font-semibold text-slate-700">เลข {item.number}</div>
-                  <div className="mt-1 text-xs text-slate-600">
-                    บน {formatAmount(item.top)}
+            filteredSummaries.map((item) => (
+              <details
+                key={item.number}
+                className="rounded-2xl border border-slate-300 bg-white shadow-sm"
+              >
+                <summary className="cursor-pointer list-none px-4 py-3 sm:px-5">
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                      <p className="text-base font-black text-slate-900">
+                        เลข {item.number}
+                      </p>
+                      <p className="text-sm text-slate-600">
+                        มีคนแทง {item.peopleCount} คน | {item.betCount} รายการ
+                      </p>
+                    </div>
+                    <div className="text-left sm:text-right">
+                      <p className="text-sm font-semibold text-slate-800">
+                        รวม {formatMoney(item.totalAmount)}
+                      </p>
+                      <p className="text-xs text-slate-500">
+                        บน {formatMoney(item.topAmount)} | ล่าง{" "}
+                        {formatMoney(item.bottomAmount)}
+                      </p>
+                    </div>
                   </div>
-                  <div className="mt-0.5 text-xs text-slate-600">
-                    ล่าง {formatAmount(item.bottom)}
+                </summary>
+
+                <div className="border-t border-slate-200 bg-slate-50 px-4 py-3 sm:px-5">
+                  <p className="mb-2 text-xs font-semibold text-slate-500">
+                    รายละเอียดคนที่แทงเลข {item.number}
+                  </p>
+                  <div className="space-y-2">
+                    {item.entries.map((entry) => (
+                      <article
+                        key={entry.id}
+                        className="rounded-lg border border-slate-200 bg-white px-3 py-2"
+                      >
+                        <p className="text-sm font-semibold text-slate-900">
+                          {entry.customerName}
+                        </p>
+                        <p className="text-xs text-slate-600">
+                          แทงเลข {entry.number} ({entry.type === "top" ? "บน" : "ล่าง"}){" "}
+                          {formatMoney(entry.amount)}
+                        </p>
+                        <p className="text-xs text-slate-500">
+                          เวลา {formatDateTime(entry.createdAt)}
+                        </p>
+                      </article>
+                    ))}
                   </div>
                 </div>
-              ))}
-            </div>
+              </details>
+            ))
           )}
         </section>
       </section>
     </main>
   );
 }
-
-export default dynamic(() => Promise.resolve(DashboardPage), {
-  ssr: false,
-});

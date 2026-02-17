@@ -4,7 +4,7 @@ import "./globals.css";
 export const metadata: Metadata = {
   title: "ระบบบันทึกแทงเลข 2 ตัว",
   description:
-    "บันทึกแทงเลข 00-99 แบบสะสมยอดอัตโนมัติ พร้อมหน้า Dashboard สรุปยอดแยกบน/ล่าง",
+    "บันทึกแทงเลขรายลูกค้า แยกบน 00-49 และล่าง 50-99 พร้อมหน้าสรุปจำนวนคนแทงรายเลข",
 };
 
 export default function RootLayout({
